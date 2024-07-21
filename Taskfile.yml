@@ -4,6 +4,7 @@ version: 3
 dotenv: [.env]
 
 env:
+  BINARY_NAME: shion-api
   DOCKER_IMAGE: 4lch4/shion-api
   DOCKER_CONTAINER_NAME: shion-api
   EXTERNAL_PORT: 4242
@@ -43,3 +44,23 @@ tasks:
       - task build
       - task clean
       - task start
+
+  build:binary:
+    desc: Builds the project into a binary for use on the local architecture.
+    aliases: [bb]
+    cmd: go build -o ${BINARY_NAME} cmd/api/main.go
+
+  run:
+    desc: Runs the API directly without building anything.
+    aliases: [rb]
+    cmd: go run cmd/api/main.go
+
+  test:
+    desc: Runs the tests for the project.
+    aliases: [t]
+    cmd: go test ./tests -v
+
+  watch:
+    desc: Runs the API while watching for changes using Air for live reloading.
+    aliases: [w]
+    cmd: air
