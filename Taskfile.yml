@@ -48,7 +48,7 @@ tasks:
   build:binary:
     desc: Builds the project into a binary for use on the local architecture.
     aliases: [bb]
-    cmd: go build -o ${BINARY_NAME} cmd/api/main.go
+    cmd: go build -o out/${BINARY_NAME} cmd/api/main.go
 
   run:
     desc: Runs the API directly without building anything.
@@ -63,4 +63,4 @@ tasks:
   watch:
     desc: Runs the API while watching for changes using Air for live reloading.
     aliases: [w]
-    cmd: air
+    cmd: source .env && air
