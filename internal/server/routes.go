@@ -3,6 +3,7 @@ package server
 import (
 	"fmt"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/4lch4/shion-api/internal/database"
@@ -11,9 +12,8 @@ import (
 )
 
 type EventResponse struct {
-	Message   string `json:"message"`
-	Timestamp string `json:"timestamp"`
-	InsertId  string `json:"insertId"`
+	Message    string              `json:"message"`
+	EventEntry database.EventEntry `json:"event_entry"`
 }
 
 var wsUpgrader = websocket.Upgrader{
@@ -24,10 +24,11 @@ var wsUpgrader = websocket.Upgrader{
 func (s *Server) RegisterRoutes() http.Handler {
 	r := gin.Default()
 
+	// All routes are to be prefixed with /api/v1, e.g. /api/v1/events.
 	rootGroup := r.Group("/api/v1")
-	wsGroup := rootGroup.Group("/ws")
 
-	// rootGroup.GET("/", s.HelloWorldHandler)
+	// All WebSocket routes are to be prefixed with /ws, e.g. /api/v1/ws/events.
+	wsGroup := rootGroup.Group("/ws")
 
 	rootGroup.GET("/health/db", s.dbHealthHandler)
 	rootGroup.GET("/health/liveness", s.basicHealthHandler)
@@ -39,26 +40,32 @@ func (s *Server) RegisterRoutes() http.Handler {
 	rootGroup.GET("/events", s.getEventsHandler)
 	rootGroup.POST("/events", s.incomingEventsHandler)
 
-	wsGroup.GET("/events", func(c *gin.Context) {
-		conn, err := wsUpgrader.Upgrade(c.Writer, c.Request, nil)
-		if err != nil {
-			fmt.Println("err:", err)
-			return
-		}
-		defer conn.Close()
-		for {
-			conn.WriteMessage(websocket.TextMessage, []byte("Hello, WebSocket!"))
-			time.Sleep(time.Second)
-		}
-	})
+	wsGroup.GET("/events", s.wsEventHandler)
 
 	return r
+}
+
+// A simple WebSocket handler that sends a message every second for testing.
+// In the end, this endpoint will function similar to the createEvent endpoint,
+// but will be able to handle a WebSocket connection for faster, more efficient
+// communication.
+func (s *Server) wsEventHandler(c *gin.Context) {
+	conn, err := wsUpgrader.Upgrade(c.Writer, c.Request, nil)
+	if err != nil {
+		fmt.Println("err:", err)
+		return
+	}
+	defer conn.Close()
+	for {
+		conn.WriteMessage(websocket.TextMessage, []byte("Hello, WebSocket!"))
+		time.Sleep(time.Second)
+	}
 }
 
 func (s *Server) getEventHandler(c *gin.Context) {
 	eventId := c.Param("id")
 
-	event, err := s.db.GetEvent(eventId)
+	event, err := s.db.GetEventByID(eventId)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -68,9 +75,25 @@ func (s *Server) getEventHandler(c *gin.Context) {
 }
 
 func (s *Server) getEventsHandler(c *gin.Context) {
-	events, err := s.db.GetEvents()
+	maxStr := c.DefaultQuery("max", "50")
+	if maxStr == "" {
+		maxStr = "50"
+	}
+
+	max, err := strconv.Atoi(maxStr)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	events, err := s.db.GetLatestEvents(max)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	if len(events) == 0 {
+		c.JSON(http.StatusOK, []database.EventEntry{})
 		return
 	}
 
@@ -85,16 +108,15 @@ func (s *Server) incomingEventHandler(c *gin.Context) {
 		return
 	}
 
-	insertId, err := s.db.CreateEvent(payload)
+	insertedEvent, err := s.db.CreateEvent(payload)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
 	resp := EventResponse{
-		Message:   fmt.Sprintf("Event received: %s - %s", payload.Type, payload.Data),
-		Timestamp: payload.Timestamp,
-		InsertId:  insertId,
+		Message:    "Event successfully received!",
+		EventEntry: insertedEvent,
 	}
 
 	c.JSON(http.StatusOK, resp)
@@ -110,28 +132,19 @@ func (s *Server) incomingEventsHandler(c *gin.Context) {
 	}
 
 	for _, entry := range entries {
-		insertId, err := s.db.CreateEvent(entry)
+		insertedEvent, err := s.db.CreateEvent(entry)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
 		}
 
 		responses = append(responses, EventResponse{
-			Message:   fmt.Sprintf("Event received: %s - %s", entry.Type, entry.Data),
-			Timestamp: entry.Timestamp,
-			InsertId:  insertId,
-		},
-		)
+			Message:    "Event(s) successfully received!",
+			EventEntry: insertedEvent,
+		})
 	}
 
 	c.JSON(http.StatusOK, responses)
-}
-
-func (s *Server) HelloWorldHandler(c *gin.Context) {
-	resp := make(map[string]string)
-	resp["message"] = "Hello World"
-
-	c.JSON(http.StatusOK, resp)
 }
 
 func (s *Server) dbHealthHandler(c *gin.Context) {
