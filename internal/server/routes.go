@@ -12,8 +12,11 @@ import (
 )
 
 type EventResponse struct {
-	Message    string              `json:"message"`
-	EventEntry database.EventEntry `json:"event_entry"`
+	// An optional message to be sent back to the client.
+	Message string `json:"message"`
+
+	// The event entry/entries that were created/queried/etc.
+	EventEntry []database.EventEntry `json:"event_entry"`
 }
 
 var wsUpgrader = websocket.Upgrader{
@@ -62,6 +65,8 @@ func (s *Server) wsEventHandler(c *gin.Context) {
 	}
 }
 
+// Retrieves a single event by its ID. Returns the event if found, or an error
+// if the operation fails.
 func (s *Server) getEventHandler(c *gin.Context) {
 	eventId := c.Param("id")
 
@@ -74,6 +79,8 @@ func (s *Server) getEventHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, event)
 }
 
+// Retrieves the latest events up to a maximum number of events. Returns a slice
+// of event entries if found, or an error if the operation fails.
 func (s *Server) getEventsHandler(c *gin.Context) {
 	maxStr := c.DefaultQuery("max", "50")
 	if maxStr == "" {
@@ -100,6 +107,8 @@ func (s *Server) getEventsHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, events)
 }
 
+// Handles an incoming Event entry. Returns the event if successful, or an error
+// if the operation fails.
 func (s *Server) incomingEventHandler(c *gin.Context) {
 	var payload database.EventEntry
 
