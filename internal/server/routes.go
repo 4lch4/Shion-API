@@ -125,7 +125,7 @@ func (s *Server) incomingEventHandler(c *gin.Context) {
 
 	resp := EventResponse{
 		Message:    "Event successfully received!",
-		EventEntry: insertedEvent,
+		EventEntry: []database.EventEntry{insertedEvent},
 	}
 
 	c.JSON(http.StatusOK, resp)
@@ -149,7 +149,7 @@ func (s *Server) incomingEventsHandler(c *gin.Context) {
 
 		responses = append(responses, EventResponse{
 			Message:    "Event(s) successfully received!",
-			EventEntry: insertedEvent,
+			EventEntry: []database.EventEntry{insertedEvent},
 		})
 	}
 
