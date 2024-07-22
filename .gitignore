@@ -33,3 +33,5 @@ main
 # SQLite database file
 **/*.db
 
+# Built files
+out/
