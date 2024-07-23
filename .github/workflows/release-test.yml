@@ -1,4 +1,4 @@
-name: Docker Build & Release Test Version
+name: Docker Build & Release Test Build
 
 on:
   push:
@@ -13,7 +13,7 @@ permissions:
 
 jobs:
   build:
-    name: Build & Release
+    name: Build & Release (Test)
     runs-on: ubuntu-latest
 
     steps:
