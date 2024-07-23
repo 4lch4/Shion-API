@@ -3,6 +3,7 @@ package server
 import (
 	"fmt"
 	"net/http"
+	"os"
 	"strconv"
 	"time"
 
@@ -19,16 +20,28 @@ type EventResponse struct {
 	EventEntry []database.EventEntry `json:"event_entry"`
 }
 
-var wsUpgrader = websocket.Upgrader{
-	ReadBufferSize:  1024,
-	WriteBufferSize: 1024,
-}
+var (
+	// The username to be used for basic authentication.
+	apiUsername = os.Getenv("API_USERNAME")
+
+	// The password to be used for basic authentication.
+	apiPassword = os.Getenv("API_PASSWORD")
+
+	// Upgrader is used to upgrade an HTTP connection to a WebSocket connection.
+	wsUpgrader = websocket.Upgrader{
+		ReadBufferSize:  1024,
+		WriteBufferSize: 1024,
+	}
+)
 
 func (s *Server) RegisterRoutes() http.Handler {
 	r := gin.Default()
 
 	// All routes are to be prefixed with /api/v1, e.g. /api/v1/event.
 	rootGroup := r.Group("/api/v1")
+
+	// Apply the basicAuthMiddleware to all routes registered under the rootGroup.
+	rootGroup.Use(basicAuthMiddleware())
 
 	// All WebSocket routes are to be prefixed with /ws, e.g. /api/v1/ws/events.
 	wsGroup := rootGroup.Group("/ws")
@@ -46,6 +59,22 @@ func (s *Server) RegisterRoutes() http.Handler {
 	wsGroup.GET("/events", s.wsEventHandler)
 
 	return r
+}
+
+// A basic auth middleware function I got from Phind made for Gin. It checks the
+// request's basic auth credentials against the username and password provided
+// in the environment variables. If the credentials are correct, the request is
+// allowed to continue. If the credentials are incorrect, the request is aborted
+// and a 401 Unauthorized response is sent back to the client.
+func basicAuthMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		user, pass, hasAuth := c.Request.BasicAuth()
+		if !hasAuth || user != apiUsername || pass != apiPassword {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"status": "Unauthorized"})
+			return
+		}
+		c.Next()
+	}
 }
 
 // A simple WebSocket handler that sends a message every second for testing.
