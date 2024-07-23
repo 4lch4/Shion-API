@@ -27,15 +27,15 @@ var wsUpgrader = websocket.Upgrader{
 func (s *Server) RegisterRoutes() http.Handler {
 	r := gin.Default()
 
-	// All routes are to be prefixed with /api/v1, e.g. /api/v1/events.
+	// All routes are to be prefixed with /api/v1, e.g. /api/v1/event.
 	rootGroup := r.Group("/api/v1")
 
 	// All WebSocket routes are to be prefixed with /ws, e.g. /api/v1/ws/events.
 	wsGroup := rootGroup.Group("/ws")
 
 	rootGroup.GET("/health/db", s.dbHealthHandler)
-	rootGroup.GET("/health/liveness", s.basicHealthHandler)
-	rootGroup.GET("/health/readiness", s.basicHealthHandler)
+	rootGroup.GET("/health/liveness", basicHealthHandler)
+	rootGroup.GET("/health/readiness", basicHealthHandler)
 
 	rootGroup.GET("/event", s.getEventHandler)
 	rootGroup.POST("/event", s.incomingEventHandler)
@@ -65,8 +65,8 @@ func (s *Server) wsEventHandler(c *gin.Context) {
 	}
 }
 
-// Retrieves a single event by its ID. Returns the event if found, or an error
-// if the operation fails.
+// Handles requests to the GET /event/:id endpoint, which accepts a single event
+// ID and returns the event with that ID, or an error if the operation fails.
 func (s *Server) getEventHandler(c *gin.Context) {
 	eventId := c.Param("id")
 
@@ -79,8 +79,9 @@ func (s *Server) getEventHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, event)
 }
 
-// Retrieves the latest events up to a maximum number of events. Returns a slice
-// of event entries if found, or an error if the operation fails.
+// Handles requests to the GET /events endpoint, which accepts a query parameter
+// for the maximum number of events to return. Returns a slice of the latest
+// events up to the maximum number specified, or an error if the operation fails.
 func (s *Server) getEventsHandler(c *gin.Context) {
 	maxStr := c.DefaultQuery("max", "50")
 	if maxStr == "" {
@@ -107,8 +108,9 @@ func (s *Server) getEventsHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, events)
 }
 
-// Handles an incoming Event entry. Returns the event if successful, or an error
-// if the operation fails.
+// Handles requests to the POST /event endpoint, which accepts a single Event
+// entry and inserts it into the database. Returns the event that was created if
+// successful, or an error if the operation fails.
 func (s *Server) incomingEventHandler(c *gin.Context) {
 	var payload database.EventEntry
 
@@ -131,6 +133,9 @@ func (s *Server) incomingEventHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, resp)
 }
 
+// Handles requests to the POST /events endpoint, which accepts an array of
+// Event entries and inserts them into the database. Returns a slice of the
+// events that were created if successful, or an error if the operation fails.
 func (s *Server) incomingEventsHandler(c *gin.Context) {
 	var entries []database.EventEntry
 	var responses []EventResponse
@@ -160,6 +165,38 @@ func (s *Server) dbHealthHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, s.db.Health())
 }
 
-func (s *Server) basicHealthHandler(c *gin.Context) {
+func basicHealthHandler(c *gin.Context) {
 	c.String(http.StatusOK, "OK")
 }
+
+// A custom logger that outputs the client's IP address, the status code of the
+// response, the latency of the request, the request method, and the request
+// path. I've commented this out because I've realized this log message is
+// output as well as the default debug messages so it's causing some things to
+// be logged twice and very ugly. For example, the following is what appears
+// when I send a request to the /api/v1/health/db endpoint:
+// 2024/07/23 05:31:03 [GIN] 172.17.0.1 - 200 - 46.588µs - GET - /api/v1/health/db
+// [GIN] 2024/07/23 - 05:31:03 | 200 |     212.452µs |      172.17.0.1 | GET      "/api/v1/health/db"
+// func CustomLogger() gin.HandlerFunc {
+// 	return func(c *gin.Context) {
+// 		startTime := time.Now()
+//
+// 		// Process request
+// 		c.Next()
+//
+// 		// Calculate latency
+// 		latency := time.Since(startTime)
+//
+// 		// Get client's IP address
+// 		clientIP := c.ClientIP()
+//
+// 		// Log format: IP - StatusCode - Latency - Request Method - Request Path
+// 		log.Printf("[GIN] %s - %d - %s - %s - %s",
+// 			clientIP,
+// 			c.Writer.Status(),
+// 			latency,
+// 			c.Request.Method,
+// 			c.Request.URL.Path,
+// 		)
+// 	}
+// }
