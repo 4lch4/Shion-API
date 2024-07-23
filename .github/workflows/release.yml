@@ -34,4 +34,5 @@ jobs:
           push: true
           tags: |
             4lch4/shion-api:${{ env.TAG_NAME }}
+            4lch4/shion-api:${{ github.sha }}
             4lch4/shion-api:latest
